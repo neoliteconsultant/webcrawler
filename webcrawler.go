@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/cavaliergopher/grab/v3"
 	flag "github.com/ogier/pflag"
@@ -30,11 +33,8 @@ func main() {
 	}
 
 	urlLink = flag.Args()[0]
-	fmt.Printf("Destination: %s\n", directoryPath)
-	fmt.Println("URL:", urlLink)
 
-	//downloadPage(directoryPath, urlLink)
-	getValidLinks("https://start.url/abc", "/Users/tonym/Desktop/Hackathon/Project_Plato/WgetExample/sites/start.html")
+	downloadPage(directoryPath, urlLink)
 }
 
 func init() {
@@ -44,15 +44,42 @@ func init() {
 func downloadPage(destPath string, url string) {
 	resp, err := grab.Get(destPath, url)
 	if err != nil {
+		fmt.Println("Error occurred!")
 		log.Fatal(err)
 	}
 	fmt.Println("Download saved to", resp.Filename)
+
+	getValidLinks(url, resp.Filename)
 }
 
 func getValidLinks(startURL string, filePath string) {
-	dat, err := os.ReadFile(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Print(string(dat))
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+
+	anchorMatcher := regexp.MustCompile(`<a[^>]* href="([^"]*)">`)
+	for scanner.Scan() {
+		text := scanner.Text()
+		href := anchorMatcher.FindAllString(text, -1)
+		if len(href) > 0 {
+			getChildrenLink(startURL, href)
+		}
+
+	}
+
+	file.Close()
+}
+
+func getChildrenLink(startURL string, href []string) {
+	linkMatcher := regexp.MustCompile(`http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+`)
+	for i := 0; i < len(href); i++ {
+		link := linkMatcher.FindString(href[i])
+		if strings.Contains(link, startURL) {
+			fmt.Println(link)
+		}
+
+	}
 }
